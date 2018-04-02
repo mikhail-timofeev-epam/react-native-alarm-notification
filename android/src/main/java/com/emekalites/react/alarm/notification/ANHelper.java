@@ -141,10 +141,13 @@ public class ANHelper {
                 smallIconResId = res.getIdentifier("ic_launcher", "mipmap", packageName);
             }
 
-            Intent resultIntent = new Intent(mContext, intentClass);
-            resultIntent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
+            Intent resultIntent = new Intent("android.intent.action.VIEW");
             resultIntent.putExtras(bundle);
-            PendingIntent resultPendingIntent = PendingIntent.getActivity(mContext, notificationID, resultIntent, PendingIntent.FLAG_UPDATE_CURRENT);
+            if (bundle.getString("url") != null) {
+                String url = bundle.getString("url");
+                resultIntent.setData(Uri.parse(url));
+            }
+            PendingIntent resultPendingIntent = PendingIntent.getActivity(mContext, notificationID, resultIntent, PendingIntent.FLAG_CANCEL_CURRENT);
 
             NotificationCompat.Builder mBuilder =
                     new NotificationCompat.Builder(mContext, channelString)
