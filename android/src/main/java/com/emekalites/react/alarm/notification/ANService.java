@@ -34,6 +34,7 @@ public class ANService extends Service {
     private Runnable myTask = new Runnable() {
         public void run() {
             new ANHelper((Application) getApplicationContext()).sendNotification(intent.getExtras());
+            new ANHelper((Application) getApplicationContext()).repeateScheduleAlarm(intent.getExtras());
             stopSelf();
         }
     };
