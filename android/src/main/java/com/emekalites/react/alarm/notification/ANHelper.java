@@ -24,6 +24,7 @@ import android.util.Log;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.TimeZone;
@@ -79,7 +80,7 @@ public class ANHelper {
     /*
     *  Send notification after alarm rings and remove it from re-scheduling
     */
-    public void sendNotification(Bundle bundle){
+    public void sendNotification(Bundle bundle) {
         try {
             Class intentClass = getMainActivityClass();
             if (intentClass == null) {
@@ -116,8 +117,7 @@ public class ANHelper {
             String smallIcon = bundle.getString("small_icon");
             if (smallIcon != null) {
                 smallIconResId = res.getIdentifier(smallIcon, "mipmap", packageName);
-            }
-            else {
+            } else {
                 smallIconResId = res.getIdentifier("ic_launcher", "mipmap", packageName);
             }
 
@@ -145,7 +145,7 @@ public class ANHelper {
 
             //large icon
             String largeIcon = bundle.getString("large_icon");
-            if(largeIcon != null && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP){
+            if (largeIcon != null && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
                 int largeIconResId = res.getIdentifier(largeIcon, "mipmap", packageName);
                 Bitmap largeIconBitmap = BitmapFactory.decodeResource(res, largeIconResId);
 
@@ -205,13 +205,13 @@ public class ANHelper {
                 try {
                     Ringtone ringtone = RingtoneManager.getRingtone(mContext, soundUri);
                     ringtone.play();
-                } catch (Exception e){
+                } catch (Exception e) {
                     Log.e(TAG, "failed to play ringtone", e);
                 }
             }
 
             //clear out one time scheduled notification once fired
-            if(bundle.containsKey("schedule_once") && bundle.getBoolean("schedule_once")) {
+            if (bundle.containsKey("schedule_once") && bundle.getBoolean("schedule_once")) {
                 Log.e(TAG, "clear out one time scheduled notification once fired");
                 SharedPreferences.Editor editor = sharedPreferences.edit();
                 editor.remove(notificationIdString);
@@ -234,7 +234,7 @@ public class ANHelper {
         }
 
         String notificationIdString = bundle.getString("id");
-        if(notificationIdString == null){
+        if (notificationIdString == null) {
             Log.e(TAG, "failed to schedule notification because id is missing");
             return;
         }
@@ -244,25 +244,19 @@ public class ANHelper {
             Log.e(TAG, "failed to schedule notification because fire date is missing");
             return;
         }
-        String[] output = fireDate.split("\\s+");
-        String[] date = output[0].split("\\-");
-        String[] time = output[1].split("\\:");
 
-        Calendar calendar = Calendar.getInstance();
-        calendar.setTimeZone(TimeZone.getDefault());
-        calendar.set(Integer.parseInt(date[2]), Integer.parseInt(date[1])-1, Integer.parseInt(date[0]), Integer.parseInt(time[0]), Integer.parseInt(time[1]), Integer.parseInt(time[2]));
-        calendar.set(Calendar.MILLISECOND, 0);
+        Calendar calendar = parseDate(fireDate);
         Long fd = calendar.getTimeInMillis();
-        Log.e(TAG, ""+calendar.getTime());
+        Log.e(TAG, "" + calendar.getTime());
 
         Intent intent = new Intent(mContext, ANAlarmReceiver.class);
         intent.putExtras(bundle);
         int notificationID = Integer.parseInt(notificationIdString);
-        PendingIntent pendingIntent = PendingIntent.getBroadcast(mContext, notificationID, intent, PendingIntent.FLAG_UPDATE_CURRENT);
+        PendingIntent pendingIntent = PendingIntent.getBroadcast(mContext, notificationID, intent, PendingIntent.FLAG_CANCEL_CURRENT);
 
-        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT){
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
             getAlarmManager().setExact(AlarmManager.RTC_WAKEUP, fd, pendingIntent);
-        }else {
+        } else {
             getAlarmManager().set(AlarmManager.RTC_WAKEUP, fd, pendingIntent);
         }
 
@@ -274,6 +268,31 @@ public class ANHelper {
             editor.apply();
         } catch (JSONException e) {
             e.printStackTrace();
+        }
+    }
+
+    public void repeateScheduleAlarm(Bundle bundle) {
+        if (bundle.containsKey("repeatInterval") && bundle.containsKey("fire_date")) {
+            String repeateInterval = bundle.getString("repeatInterval");
+            String fireDate = bundle.getString("fire_date");
+            Calendar calendar = parseDate(fireDate);
+
+            switch (repeateInterval) {
+                case "day":
+                    calendar.add(Calendar.DAY_OF_MONTH, 1);
+                    break;
+                case "week":
+                    calendar.add(Calendar.DAY_OF_MONTH, 7);
+                    break;
+                case "year":
+                    calendar.add(Calendar.YEAR, 1);
+                    break;
+            }
+
+            SimpleDateFormat sdf1 = new SimpleDateFormat("dd-MM-yyyy hh:mm:ss");
+            String output = sdf1.format(calendar.getTime());
+            bundle.putString("fire_date", output);
+            scheduleAlarm(bundle);
         }
     }
 
@@ -294,27 +313,27 @@ public class ANHelper {
     public void cancelAllNotifications() {
         java.util.Map<String, ?> keyMap = sharedPreferences.getAll();
         SharedPreferences.Editor editor = sharedPreferences.edit();
-        for(java.util.Map.Entry<String, ?> entry:keyMap.entrySet()){
+        for (java.util.Map.Entry<String, ?> entry : keyMap.entrySet()) {
             cancelAlarm(entry.getKey());
         }
         editor.clear();
         editor.apply();
     }
 
-    public void removeFiredNotification(String notificationId){
+    public void removeFiredNotification(String notificationId) {
         getNotificationManager().cancel(Integer.parseInt(notificationId));
     }
 
-    public void removeAllFiredNotifications(){
+    public void removeAllFiredNotifications() {
         getNotificationManager().cancelAll();
     }
 
-    public ArrayList<Bundle> getScheduledAlarms(){
+    public ArrayList<Bundle> getScheduledAlarms() {
         ArrayList<Bundle> array = new ArrayList<Bundle>();
         java.util.Map<String, ?> keyMap = sharedPreferences.getAll();
-        for(java.util.Map.Entry<String, ?> entry:keyMap.entrySet()){
+        for (java.util.Map.Entry<String, ?> entry : keyMap.entrySet()) {
             try {
-                JSONObject json = new JSONObject((String)entry.getValue());
+                JSONObject json = new JSONObject((String) entry.getValue());
                 Bundle bundle = BundleJSONConverter.convertToBundle(json);
                 array.add(bundle);
             } catch (JSONException e) {
@@ -322,5 +341,18 @@ public class ANHelper {
             }
         }
         return array;
+    }
+
+    private Calendar parseDate(String dateToParse) {
+        String[] output = dateToParse.split("\\s+");
+        String[] date = output[0].split("\\-");
+        String[] time = output[1].split("\\:");
+
+        Calendar calendar = Calendar.getInstance();
+        calendar.setTimeZone(TimeZone.getDefault());
+        calendar.set(Integer.parseInt(date[2]), Integer.parseInt(date[1]) - 1, Integer.parseInt(date[0]), Integer.parseInt(time[0]), Integer.parseInt(time[1]), Integer.parseInt(time[2]));
+        calendar.set(Calendar.MILLISECOND, 0);
+
+        return calendar;
     }
 }
